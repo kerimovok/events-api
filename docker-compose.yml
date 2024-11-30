@@ -1,0 +1,10 @@
+services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        environment:
+            - PORT=${PORT}
+            - GO_ENV=${GO_ENV}
+            - MONGO_URI=${MONGO_URI}
+            - MONGO_DB=${MONGO_DB}
