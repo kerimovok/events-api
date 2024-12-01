@@ -22,7 +22,7 @@ func NewMongoService() DatabaseService {
 }
 
 func (m *mongoService) Connect() error {
-	uri := config.GetEnv("MONGO_URI")
+	uri := config.AppConfig.MongoDB.URI
 	opts := options.Client().ApplyURI(uri)
 
 	client, err := mongo.Connect(context.TODO(), opts)
