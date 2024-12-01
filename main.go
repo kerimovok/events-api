@@ -18,6 +18,14 @@ import (
 	"github.com/google/uuid"
 )
 
+func init() {
+	if err := config.LoadEnv(); err != nil {
+		log.Fatal(err)
+	}
+
+	validator.InitValidator()
+}
+
 func setupApp() *fiber.App {
 	app := fiber.New(fiber.Config{})
 
@@ -37,12 +45,6 @@ func setupApp() *fiber.App {
 }
 
 func main() {
-	if err := config.LoadEnv(); err != nil {
-		log.Fatal(err)
-	}
-
-	validator.InitValidator()
-
 	app := setupApp()
 
 	dbService := database.NewMongoService()
