@@ -60,5 +60,5 @@ func main() {
 
 	routes.Setup(app, dbService)
 
-	log.Fatal(app.Listen(":" + config.AppConfig.Server.Port))
+	log.Fatal(app.Listen(":" + config.Env.Server.Port))
 }

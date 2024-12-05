@@ -17,12 +17,12 @@ type mongoService struct {
 
 func NewMongoService() DatabaseService {
 	return &mongoService{
-		database: config.AppConfig.MongoDB.Database,
+		database: config.Env.DB.Database,
 	}
 }
 
 func (m *mongoService) Connect() error {
-	uri := config.AppConfig.MongoDB.URI
+	uri := config.Env.DB.URI
 	opts := options.Client().ApplyURI(uri)
 
 	client, err := mongo.Connect(context.TODO(), opts)
