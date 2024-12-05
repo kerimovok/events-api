@@ -10,6 +10,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var AppConfig *Config
+
 type Config struct {
 	MongoDB struct {
 		URI      string
@@ -21,29 +23,27 @@ type Config struct {
 	}
 }
 
-var AppConfig Config
-
 func LoadEnv() error {
 	if err := godotenv.Load(); err != nil {
-		if os.Getenv("GO_ENV") != "production" {
+		if GetEnv("GO_ENV") != "production" {
 			log.Printf("Warning: .env file not found")
 		}
 	}
 
-	AppConfig = Config{
+	AppConfig = &Config{
 		MongoDB: struct {
 			URI      string
 			Database string
 		}{
-			URI:      getEnvOrDefault("MONGO_URI", "mongodb://localhost:27017"),
-			Database: getEnvOrDefault("MONGO_DB", "events-api"),
+			URI:      GetEnvOrDefault("MONGO_URI", "mongodb://localhost:27017"),
+			Database: GetEnvOrDefault("MONGO_DB", "events-api"),
 		},
 		Server: struct {
 			Port        string
 			Environment string
 		}{
-			Port:        getEnvOrDefault("PORT", "3005"),
-			Environment: getEnvOrDefault("GO_ENV", "development"),
+			Port:        GetEnvOrDefault("PORT", "3005"),
+			Environment: GetEnvOrDefault("GO_ENV", "development"),
 		},
 	}
 
@@ -82,8 +82,8 @@ func validateConfig() error {
 	return nil
 }
 
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
+func GetEnvOrDefault(key, defaultValue string) string {
+	if value := GetEnv(key); value != "" {
 		return value
 	}
 	return defaultValue
