@@ -2,8 +2,7 @@ package database
 
 import (
 	"context"
-	"events-api/pkg/config"
-	"fmt"
+	"events-api/pkg/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -17,12 +16,12 @@ type mongoService struct {
 
 func NewMongoService() DatabaseService {
 	return &mongoService{
-		database: config.Env.DB.Database,
+		database: utils.GetEnv("DB_NAME"),
 	}
 }
 
 func (m *mongoService) Connect() error {
-	uri := config.Env.DB.URI
+	uri := utils.GetEnv("DB_URI")
 	opts := options.Client().ApplyURI(uri)
 
 	client, err := mongo.Connect(context.TODO(), opts)
@@ -37,7 +36,7 @@ func (m *mongoService) Connect() error {
 	}
 
 	m.client = client
-	fmt.Println("Successfully connected to MongoDB!")
+	utils.LogInfo("Successfully connected to MongoDB!")
 	return nil
 }
 

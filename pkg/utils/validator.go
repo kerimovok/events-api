@@ -1,27 +1,31 @@
 package utils
 
 import (
-	"events-api/pkg/validator"
 	"fmt"
 	"strings"
-
-	validatorv10 "github.com/go-playground/validator/v10"
 )
 
-// ValidateRequest validates a struct using validator tags
-func ValidateRequest(req interface{}) error {
-	// Validate struct
-	if err := validator.Validate.Struct(req); err != nil {
-		// Check if it's a validation error
-		if validationErrors, ok := err.(validatorv10.ValidationErrors); ok {
-			var errMsgs []string
-			for _, validationErr := range validationErrors {
-				errMsgs = append(errMsgs, fmt.Sprintf("field '%s' failed validation on the '%s' tag", validationErr.Field(), validationErr.Tag()))
-			}
-			return fmt.Errorf("validation failed: %s", strings.Join(errMsgs, "; "))
+// ValidationRule defines a validation function that returns an error if validation fails
+type ValidationRule struct {
+	Variable string
+	Default  string
+	Rule     func(value string) bool
+	Message  string
+}
+
+// ValidateConfig checks all required configuration values
+func ValidateConfig(rules []ValidationRule) error {
+	var errors []string
+	for _, rule := range rules {
+		value := GetEnvOrDefault(rule.Variable, rule.Default)
+		if !rule.Rule(value) {
+			errors = append(errors, rule.Message)
 		}
-		// Handle other types of errors
-		return err
 	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("validation failed: %s", strings.Join(errors, "; "))
+	}
+
 	return nil
 }

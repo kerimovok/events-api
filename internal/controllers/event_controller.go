@@ -1,10 +1,10 @@
 package controllers
 
 import (
+	"events-api/internal/requests"
 	"events-api/internal/services"
-	"events-api/pkg/errors"
-	"events-api/pkg/request"
 	"events-api/pkg/utils"
+	"events-api/pkg/validator"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -21,19 +21,20 @@ func NewEventController(eventService services.EventService) *EventController {
 
 func (ec *EventController) CreateEvent(c *fiber.Ctx) error {
 	ctx := c.Context()
-	var input request.CreateEventRequest
+	var input requests.CreateEventRequest
 
 	if err := c.BodyParser(&input); err != nil {
-		return utils.ErrorResponse(c, errors.NewBadRequestError("Invalid request body", err))
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
 	}
 
-	if err := utils.ValidateRequest(input); err != nil {
-		return utils.ErrorResponse(c, errors.NewBadRequestError("Validation failed", err))
+	if err := validator.ValidateStruct(&input); err != nil {
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
 	}
 
 	event, err := ec.eventService.CreateEvent(ctx, input.Name, input.Properties)
 	if err != nil {
-		return utils.ErrorResponse(c, errors.NewInternalError("Failed to create event", err))
+		utils.LogError("failed to create event", err)
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to create event", err)
 	}
 
 	return utils.SuccessResponse(c, "Event created successfully", event)

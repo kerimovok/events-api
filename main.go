@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"events-api/internal/config"
+	"events-api/internal/constants"
 	"events-api/internal/routes"
-	"events-api/pkg/config"
 	"events-api/pkg/database"
+	"events-api/pkg/utils"
 	"events-api/pkg/validator"
 	"log"
 
@@ -19,10 +21,17 @@ import (
 )
 
 func init() {
-	if err := config.LoadEnv(); err != nil {
-		log.Fatal(err)
+	// Load all configs
+	if err := config.LoadConfig(); err != nil {
+		utils.LogFatal("failed to load configs", err)
 	}
 
+	// Validate environment variables
+	if err := utils.ValidateConfig(constants.EnvValidationRules); err != nil {
+		utils.LogFatal("configuration validation failed", err)
+	}
+
+	// Initialize validator
 	validator.InitValidator()
 }
 
@@ -60,5 +69,6 @@ func main() {
 
 	routes.Setup(app, dbService)
 
-	log.Fatal(app.Listen(":" + config.Env.Server.Port))
+	// Start server
+	utils.LogFatal("failed to start server", app.Listen(":"+utils.GetEnv("PORT")))
 }

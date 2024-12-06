@@ -1,10 +1,6 @@
 package utils
 
-import (
-	"events-api/pkg/errors"
-
-	"github.com/gofiber/fiber/v2"
-)
+import "github.com/gofiber/fiber/v2"
 
 type Response struct {
 	Success bool        `json:"success"`
@@ -21,10 +17,15 @@ func SuccessResponse(c *fiber.Ctx, message string, data interface{}) error {
 	})
 }
 
-func ErrorResponse(c *fiber.Ctx, appErr *errors.AppError) error {
-	return c.Status(appErr.Code).JSON(Response{
+func ErrorResponse(c *fiber.Ctx, status int, message string, err error) error {
+	errMsg := ""
+	if err != nil {
+		errMsg = err.Error()
+	}
+
+	return c.Status(status).JSON(Response{
 		Success: false,
-		Message: appErr.Message,
-		Error:   appErr.Error(),
+		Message: message,
+		Error:   errMsg,
 	})
 }

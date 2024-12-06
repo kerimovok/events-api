@@ -10,7 +10,9 @@ import (
 )
 
 func Setup(app *fiber.App, dbService database.DatabaseService) {
-	api := app.Group("/api/v1")
+	// API routes group
+	api := app.Group("/api")
+	v1 := api.Group("/v1")
 
 	// Services
 	eventService := services.NewEventService(dbService)
@@ -22,6 +24,6 @@ func Setup(app *fiber.App, dbService database.DatabaseService) {
 	app.Get("/metrics", monitor.New())
 
 	// Event routes
-	eventRoutes := api.Group("/events")
+	eventRoutes := v1.Group("/events")
 	eventRoutes.Post("/", eventController.CreateEvent)
 }
