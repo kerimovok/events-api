@@ -8,7 +8,11 @@ import (
 	"events-api/pkg/database"
 	"events-api/pkg/utils"
 	"events-api/pkg/validator"
-	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
@@ -54,21 +58,41 @@ func setupApp() *fiber.App {
 }
 
 func main() {
-	app := setupApp()
-
-	dbService := database.NewMongoService()
-	if err := dbService.Connect(); err != nil {
-		log.Fatal(err)
+	// Connect to MongoDB
+	if err := database.ConnectDB(); err != nil {
+		utils.LogFatal("failed to connect to MongoDB", err)
 	}
 
-	defer func() {
-		if err := dbService.Disconnect(context.Background()); err != nil {
-			log.Printf("Error disconnecting from database: %v", err)
+	app := setupApp()
+	routes.Setup(app)
+
+	// Setup graceful shutdown
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-c
+		utils.LogInfo("Gracefully shutting down...")
+
+		// Shutdown the server
+		if err := app.Shutdown(); err != nil {
+			utils.LogError("error during server shutdown", err)
 		}
+
+		// Disconnect from MongoDB
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := database.DisconnectDB(ctx); err != nil {
+			utils.LogError("failed to disconnect from MongoDB", err)
+		}
+
+		utils.LogInfo("Server gracefully stopped")
+		os.Exit(0)
 	}()
 
-	routes.Setup(app, dbService)
-
 	// Start server
-	utils.LogFatal("failed to start server", app.Listen(":"+utils.GetEnv("PORT")))
+	if err := app.Listen(":" + utils.GetEnv("PORT")); err != nil && err != http.ErrServerClosed {
+		utils.LogFatal("failed to start server", err)
+	}
 }

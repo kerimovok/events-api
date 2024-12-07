@@ -3,51 +3,58 @@ package database
 import (
 	"context"
 	"events-api/pkg/utils"
+	"fmt"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type mongoService struct {
-	client   *mongo.Client
-	database string
-}
+var DBClient *mongo.Client
 
-func NewMongoService() DatabaseService {
-	return &mongoService{
-		database: utils.GetEnv("DB_NAME"),
-	}
-}
+const (
+	defaultTimeout = 10 * time.Second
+)
 
-func (m *mongoService) Connect() error {
+func ConnectDB() error {
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
 	uri := utils.GetEnv("DB_URI")
 	opts := options.Client().ApplyURI(uri)
 
-	client, err := mongo.Connect(context.TODO(), opts)
+	client, err := mongo.Connect(ctx, opts)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to connect to MongoDB: %w", err)
 	}
 
-	// Verify connection
+	// Verify connection with timeout
 	var result bson.M
-	if err := client.Database(m.database).RunCommand(context.TODO(), bson.D{{Key: "ping", Value: 1}}).Decode(&result); err != nil {
-		return err
+	if err := client.Database(utils.GetEnv("DB_NAME")).RunCommand(ctx, bson.D{{Key: "ping", Value: 1}}).Decode(&result); err != nil {
+		return fmt.Errorf("failed to ping MongoDB: %w", err)
 	}
 
-	m.client = client
+	DBClient = client
 	utils.LogInfo("Successfully connected to MongoDB!")
 	return nil
 }
 
-func (m *mongoService) Disconnect(ctx context.Context) error {
-	return m.client.Disconnect(ctx)
-}
+func DisconnectDB(ctx context.Context) error {
+	if DBClient == nil {
+		return nil
+	}
 
-func (m *mongoService) GetCollection(name string) *mongo.Collection {
-	return m.client.Database(m.database).Collection(name)
-}
+	// Create context with timeout if none provided
+	if ctx == nil {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+	}
 
-func (m *mongoService) InsertOne(ctx context.Context, collection string, document interface{}) (*mongo.InsertOneResult, error) {
-	return m.GetCollection(collection).InsertOne(ctx, document)
+	if err := DBClient.Disconnect(ctx); err != nil {
+		return fmt.Errorf("failed to disconnect from MongoDB: %w", err)
+	}
+	return nil
 }

@@ -9,17 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type EventController struct {
-	eventService services.EventService
-}
-
-func NewEventController(eventService services.EventService) *EventController {
-	return &EventController{
-		eventService: eventService,
-	}
-}
-
-func (ec *EventController) CreateEvent(c *fiber.Ctx) error {
+func CreateEvent(c *fiber.Ctx) error {
 	ctx := c.Context()
 	var input requests.CreateEventRequest
 
@@ -31,7 +21,7 @@ func (ec *EventController) CreateEvent(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid request body", err)
 	}
 
-	event, err := ec.eventService.CreateEvent(ctx, input.Name, input.Properties)
+	event, err := services.CreateEvent(ctx, input.Properties)
 	if err != nil {
 		utils.LogError("failed to create event", err)
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to create event", err)
