@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"events-api/internal/controllers"
+	"events-api/internal/handlers"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/monitor"
@@ -16,6 +16,6 @@ func Setup(app *fiber.App) {
 	app.Get("/metrics", monitor.New())
 
 	// Event routes
-	eventRoutes := v1.Group("/events")
-	eventRoutes.Post("/", controllers.CreateEvent)
+	event := v1.Group("/events")
+	event.Post("/", handlers.CreateEvent)
 }
