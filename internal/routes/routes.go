@@ -18,4 +18,7 @@ func Setup(app *fiber.App) {
 	// Event routes
 	event := v1.Group("/events")
 	event.Post("/", handlers.CreateEvent)
+	event.Get("/", handlers.GetEvents)
+	event.Get("/stats", handlers.GetStats)
+	event.Get("/timeseries", handlers.GetTimeSeries)
 }

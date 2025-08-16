@@ -1,13 +1,16 @@
 package constants
 
-import "events-api/pkg/utils"
+import (
+	"github.com/kerimovok/go-pkg-utils/config"
+	"github.com/kerimovok/go-pkg-utils/validator"
+)
 
-var EnvValidationRules = []utils.ValidationRule{
+var EnvValidationRules = []validator.ValidationRule{
 	// Server validation
 	{
 		Variable: "PORT",
 		Default:  "3005",
-		Rule:     utils.IsValidPort,
+		Rule:     config.IsValidPort,
 		Message:  "server port is required and must be a valid port number",
 	},
 	{

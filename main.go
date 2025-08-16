@@ -4,10 +4,9 @@ import (
 	"context"
 	"events-api/internal/config"
 	"events-api/internal/constants"
+	"events-api/internal/database"
 	"events-api/internal/routes"
-	"events-api/pkg/database"
-	"events-api/pkg/utils"
-	"events-api/pkg/validator"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,21 +21,21 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/google/uuid"
+	"github.com/kerimovok/go-pkg-database/mongo"
+	pkgConfig "github.com/kerimovok/go-pkg-utils/config"
+	pkgValidator "github.com/kerimovok/go-pkg-utils/validator"
 )
 
 func init() {
 	// Load all configs
 	if err := config.LoadConfig(); err != nil {
-		utils.LogFatal("failed to load configs", err)
+		log.Fatalf("failed to load configs: %v", err)
 	}
 
 	// Validate environment variables
-	if err := utils.ValidateConfig(constants.EnvValidationRules); err != nil {
-		utils.LogFatal("configuration validation failed", err)
+	if err := pkgValidator.ValidateConfig(constants.EnvValidationRules); err != nil {
+		log.Fatalf("configuration validation failed: %v", err)
 	}
-
-	// Initialize validator
-	validator.InitValidator()
 }
 
 func setupApp() *fiber.App {
@@ -58,10 +57,34 @@ func setupApp() *fiber.App {
 }
 
 func main() {
-	// Connect to MongoDB
-	if err := database.ConnectDB(); err != nil {
-		utils.LogFatal("failed to connect to MongoDB", err)
+	// Connect to MongoDB using go-pkg-database
+	mongoConfig := mongo.MongoConfig{
+		URI:            pkgConfig.GetEnv("DB_URI"),
+		DBName:         pkgConfig.GetEnv("DB_NAME"),
+		Timeout:        10 * time.Second,
+		MaxPoolSize:    100,
+		MinPoolSize:    5,
+		MaxIdleTime:    5 * time.Minute,
+		MaxConnecting:  10,
+		ReadPreference: "primary",
+		RetryWrites:    true,
+		RetryReads:     true,
 	}
+
+	client, err := mongo.Connect(mongoConfig)
+	if err != nil {
+		log.Fatalf("failed to connect to MongoDB: %v", err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := client.Disconnect(ctx); err != nil {
+			log.Printf("failed to disconnect from MongoDB: %v", err)
+		}
+	}()
+
+	// Set the global DB client for handlers
+	database.DBClient = client
 
 	app := setupApp()
 	routes.Setup(app)
@@ -72,27 +95,27 @@ func main() {
 
 	go func() {
 		<-c
-		utils.LogInfo("Gracefully shutting down...")
+		log.Println("Gracefully shutting down...")
 
 		// Shutdown the server
 		if err := app.Shutdown(); err != nil {
-			utils.LogError("error during server shutdown", err)
+			log.Printf("error during server shutdown: %v", err)
 		}
 
 		// Disconnect from MongoDB
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		if err := database.DisconnectDB(ctx); err != nil {
-			utils.LogError("failed to disconnect from MongoDB", err)
+		if err := client.Disconnect(ctx); err != nil {
+			log.Printf("failed to disconnect from MongoDB: %v", err)
 		}
 
-		utils.LogInfo("Server gracefully stopped")
+		log.Println("Server gracefully stopped")
 		os.Exit(0)
 	}()
 
 	// Start server
-	if err := app.Listen(":" + utils.GetEnv("PORT")); err != nil && err != http.ErrServerClosed {
-		utils.LogFatal("failed to start server", err)
+	if err := app.Listen(":" + pkgConfig.GetEnv("PORT")); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("failed to start server: %v", err)
 	}
 }
