@@ -11,7 +11,7 @@ func Pagination(page, limit int) (skip, perPage int) {
 	if page < DefaultPage {
 		page = DefaultPage
 	}
-	if limit < DefaultPage {
+	if limit < 1 {
 		limit = DefaultLimit
 	}
 

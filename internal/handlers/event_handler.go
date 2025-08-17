@@ -20,8 +20,8 @@ import (
 const (
 	// Default query parameters
 	DefaultPage      = 1
-	DefaultLimit     = 10
-	DefaultSortBy    = "createdAt"
+	DefaultLimit     = 50
+	DefaultSortBy    = "created_at"
 	DefaultSortOrder = "asc"
 
 	// Query parameter names
@@ -46,12 +46,14 @@ func CreateEvent(c *fiber.Ctx) error {
 	var input requests.CreateEventRequest
 
 	if err := c.BodyParser(&input); err != nil {
+		log.Printf("failed to parse request body: %v", err)
 		response := httpx.BadRequest("Invalid request body", err)
 		return httpx.SendResponse(c, response)
 	}
 
 	validationErrors := validator.ValidateStruct(&input)
 	if validationErrors.HasErrors() {
+		log.Printf("validation failed for event creation: %v", validationErrors)
 		// Convert validator.ValidationErrors to []httpx.ValidationError
 		httpxErrors := make([]httpx.ValidationError, len(validationErrors))
 		for i, err := range validationErrors {
@@ -73,12 +75,13 @@ func CreateEvent(c *fiber.Ctx) error {
 
 	result, err := database.DBClient.Database().Collection("events").InsertOne(ctx, event)
 	if err != nil {
-		log.Printf("failed to create event: %v", err)
-		response := httpx.InternalServerError("Internal server error", err)
+		log.Printf("failed to create event in database: %v", err)
+		response := httpx.InternalServerError("Failed to create event", err)
 		return httpx.SendResponse(c, response)
 	}
 
 	event.Id = result.InsertedID.(primitive.ObjectID)
+	log.Printf("event created successfully with ID: %s", event.Id.Hex())
 
 	response := httpx.Created("Event created successfully", event)
 	return httpx.SendResponse(c, response)
@@ -96,10 +99,30 @@ func GetEvents(c *fiber.Ctx) error {
 	defer cancel()
 
 	// Extract query parameters
-	page, _ := strconv.Atoi(c.Query(ParamPage, strconv.Itoa(DefaultPage)))
-	limit, _ := strconv.Atoi(c.Query(ParamLimit, strconv.Itoa(DefaultLimit)))
+	page, err := strconv.Atoi(c.Query(ParamPage, strconv.Itoa(DefaultPage)))
+	if err != nil {
+		return httpx.SendResponse(c, httpx.BadRequest("Invalid page parameter", err))
+	}
+	limit, err := strconv.Atoi(c.Query(ParamLimit, strconv.Itoa(DefaultLimit)))
+	if err != nil {
+		return httpx.SendResponse(c, httpx.BadRequest("Invalid limit parameter", err))
+	}
 	sortBy := c.Query(ParamSortBy, DefaultSortBy)
 	sortOrder := c.Query(ParamSortOrder, DefaultSortOrder)
+
+	// Validate parameters
+	if page < 1 {
+		return httpx.SendResponse(c, httpx.BadRequest("Page must be a positive number", nil))
+	}
+	if limit < 1 || limit > 1000 {
+		return httpx.SendResponse(c, httpx.BadRequest("Limit must be between 1 and 1000", nil))
+	}
+	if !isValidSortField(sortBy) {
+		return httpx.SendResponse(c, httpx.BadRequest("Invalid sort field", nil))
+	}
+	if sortOrder != "asc" && sortOrder != "desc" {
+		return httpx.SendResponse(c, httpx.BadRequest("Sort order must be 'asc' or 'desc'", nil))
+	}
 
 	// Extract filters
 	filters := bson.M{}
@@ -133,6 +156,39 @@ func isReservedQueryParam(key string) bool {
 	return false
 }
 
+// isValidSortField checks if a sort field is valid to prevent injection attacks
+func isValidSortField(field string) bool {
+	validFields := []string{"created_at", "updated_at", "id"}
+	for _, valid := range validFields {
+		if field == valid {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidAggregation checks if an aggregation type is valid
+func isValidAggregation(agg string) bool {
+	validAggregations := []string{"count", "sum", "avg"}
+	for _, valid := range validAggregations {
+		if agg == valid {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidTimeInterval checks if a time interval is valid
+func isValidTimeInterval(interval string) bool {
+	validIntervals := []string{"hour", "day", "week", "month"}
+	for _, valid := range validIntervals {
+		if interval == valid {
+			return true
+		}
+	}
+	return false
+}
+
 // GetStats aggregates event data based on grouping and aggregation criteria
 // Supports query parameters:
 // - groupBy: Field to group results by
@@ -144,6 +200,15 @@ func GetStats(c *fiber.Ctx) error {
 	// Extract query parameters
 	groupBy := c.Query(ParamGroupBy, "")
 	aggregates := c.Query(ParamAggregates, DefaultAggregates)
+
+	// Validate parameters
+	if groupBy == "" {
+		return httpx.SendResponse(c, httpx.BadRequest("groupBy parameter is required", nil))
+	}
+	if !isValidAggregation(aggregates) {
+		return httpx.SendResponse(c, httpx.BadRequest("Invalid aggregation type", nil))
+	}
+
 	filters := bson.M{}
 	for key, values := range c.Queries() {
 		if key != ParamGroupBy && key != ParamAggregates {
@@ -175,6 +240,15 @@ func GetTimeSeries(c *fiber.Ctx) error {
 	// Extract query parameters
 	aggregates := c.Query(ParamAggregates, DefaultAggregates)
 	interval := c.Query(ParamInterval, DefaultInterval)
+
+	// Validate parameters
+	if !isValidAggregation(aggregates) {
+		return httpx.SendResponse(c, httpx.BadRequest("Invalid aggregation type", nil))
+	}
+	if !isValidTimeInterval(interval) {
+		return httpx.SendResponse(c, httpx.BadRequest("Invalid time interval", nil))
+	}
+
 	filters := bson.M{}
 	for key, values := range c.Queries() {
 		if key != ParamAggregates && key != ParamInterval {

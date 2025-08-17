@@ -4,6 +4,8 @@ import (
 	"context"
 	"events-api/internal/database"
 	"events-api/internal/models"
+	"fmt"
+	"log"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -47,17 +49,24 @@ func QueryEvents(ctx context.Context, filters bson.M, sort bson.D, page, limit i
 		SetLimit(int64(perPage))
 
 	collection := database.DBClient.Database().Collection(EventsCollection)
+
+	// Add logging for debugging
+	log.Printf("Querying events with filters: %+v, sort: %+v, skip: %d, limit: %d", filters, sort, skip, perPage)
+
 	cursor, err := collection.Find(ctx, filters, opts)
 	if err != nil {
+		log.Printf("failed to execute find query: %v", err)
 		return nil, err
 	}
 	defer cursor.Close(ctx)
 
 	var events []models.Event
 	if err = cursor.All(ctx, &events); err != nil {
+		log.Printf("failed to decode events: %v", err)
 		return nil, err
 	}
 
+	log.Printf("retrieved %d events", len(events))
 	return events, nil
 }
 
@@ -68,6 +77,10 @@ func QueryEvents(ctx context.Context, filters bson.M, sort bson.D, page, limit i
 // - groupBy: Field to group results by
 // - aggregates: Type of aggregation to perform (count, sum, avg)
 func AggregateStats(ctx context.Context, filters bson.M, groupBy, aggregates string) ([]bson.M, error) {
+	if groupBy == "" {
+		return nil, fmt.Errorf("groupBy field is required")
+	}
+
 	pipeline := []bson.M{}
 
 	// Match stage for filters
@@ -119,6 +132,10 @@ func AggregateStats(ctx context.Context, filters bson.M, groupBy, aggregates str
 // - interval: Time interval for grouping (hour, day, week, month)
 // - aggregates: Type of aggregation to perform (count, sum, avg)
 func AggregateTimeSeries(ctx context.Context, filters bson.M, interval, aggregates string) ([]bson.M, error) {
+	if interval == "" {
+		return nil, fmt.Errorf("interval parameter is required")
+	}
+
 	pipeline := []bson.M{}
 
 	// Match stage for filters
