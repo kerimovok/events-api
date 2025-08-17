@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"events-api/internal/constants"
 	"events-api/internal/database"
 	"events-api/internal/models"
 	"fmt"
@@ -9,28 +10,6 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
-)
-
-const (
-	// Collection names
-	EventsCollection = "events"
-
-	// Default aggregation operations
-	AggregationCount = "count"
-	AggregationSum   = "sum"
-	AggregationAvg   = "avg"
-
-	// Time interval formats
-	TimeFormatHour  = "%Y-%m-%d-%H"
-	TimeFormatDay   = "%Y-%m-%d"
-	TimeFormatWeek  = "%Y-%U"
-	TimeFormatMonth = "%Y-%m"
-
-	// Time intervals
-	IntervalHour  = "hour"
-	IntervalDay   = "day"
-	IntervalWeek  = "week"
-	IntervalMonth = "month"
 )
 
 // QueryEvents retrieves events with pagination, filtering, and sorting
@@ -48,7 +27,7 @@ func QueryEvents(ctx context.Context, filters bson.M, sort bson.D, page, limit i
 		SetSkip(int64(skip)).
 		SetLimit(int64(perPage))
 
-	collection := database.DBClient.Database().Collection(EventsCollection)
+	collection := database.DBClient.Database().Collection(constants.EventsCollection)
 
 	// Add logging for debugging
 	log.Printf("Querying events with filters: %+v, sort: %+v, skip: %d, limit: %d", filters, sort, skip, perPage)
@@ -95,11 +74,11 @@ func AggregateStats(ctx context.Context, filters bson.M, groupBy, aggregates str
 
 	// Add aggregation operations
 	switch aggregates {
-	case AggregationCount:
+	case constants.AggregationCount:
 		groupStage["value"] = bson.M{"$sum": 1}
-	case AggregationSum:
+	case constants.AggregationSum:
 		groupStage["value"] = bson.M{"$sum": "$value"}
-	case AggregationAvg:
+	case constants.AggregationAvg:
 		groupStage["value"] = bson.M{"$avg": "$value"}
 	default:
 		groupStage["value"] = bson.M{"$sum": 1} // Default to count
@@ -110,7 +89,7 @@ func AggregateStats(ctx context.Context, filters bson.M, groupBy, aggregates str
 		bson.M{"$sort": bson.M{"_id": 1}},
 	)
 
-	collection := database.DBClient.Database().Collection(EventsCollection)
+	collection := database.DBClient.Database().Collection(constants.EventsCollection)
 	cursor, err := collection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
@@ -155,11 +134,11 @@ func AggregateTimeSeries(ctx context.Context, filters bson.M, interval, aggregat
 
 	// Add aggregation operations
 	switch aggregates {
-	case AggregationCount:
+	case constants.AggregationCount:
 		groupStage["value"] = bson.M{"$sum": 1}
-	case AggregationSum:
+	case constants.AggregationSum:
 		groupStage["value"] = bson.M{"$sum": "$value"}
-	case AggregationAvg:
+	case constants.AggregationAvg:
 		groupStage["value"] = bson.M{"$avg": "$value"}
 	default:
 		groupStage["value"] = bson.M{"$sum": 1} // Default to count
@@ -170,7 +149,7 @@ func AggregateTimeSeries(ctx context.Context, filters bson.M, interval, aggregat
 		bson.M{"$sort": bson.M{"_id": 1}},
 	)
 
-	collection := database.DBClient.Database().Collection(EventsCollection)
+	collection := database.DBClient.Database().Collection(constants.EventsCollection)
 	cursor, err := collection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
@@ -188,15 +167,15 @@ func AggregateTimeSeries(ctx context.Context, filters bson.M, interval, aggregat
 // getTimeFormat returns the date format string for MongoDB based on the interval
 func getTimeFormat(interval string) string {
 	switch interval {
-	case IntervalHour:
-		return TimeFormatHour
-	case IntervalDay:
-		return TimeFormatDay
-	case IntervalWeek:
-		return TimeFormatWeek
-	case IntervalMonth:
-		return TimeFormatMonth
+	case constants.IntervalHour:
+		return constants.TimeFormatHour
+	case constants.IntervalDay:
+		return constants.TimeFormatDay
+	case constants.IntervalWeek:
+		return constants.TimeFormatWeek
+	case constants.IntervalMonth:
+		return constants.TimeFormatMonth
 	default:
-		return TimeFormatDay // Default to daily
+		return constants.TimeFormatDay // Default to daily
 	}
 }

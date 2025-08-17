@@ -1,21 +1,17 @@
 package utils
 
-const (
-	// Default pagination values
-	DefaultPage  = 1
-	DefaultLimit = 50
-)
+import "events-api/internal/constants"
 
 // Pagination contains information about page number and limit
 func Pagination(page, limit int) (skip, perPage int) {
-	if page < DefaultPage {
-		page = DefaultPage
+	if page < constants.DefaultPage {
+		page = constants.DefaultPage
 	}
 	if limit < 1 {
-		limit = DefaultLimit
+		limit = constants.DefaultLimit
 	}
 
-	skip = (page - DefaultPage) * limit
+	skip = (page - constants.DefaultPage) * limit
 	perPage = limit
 	return
 }
