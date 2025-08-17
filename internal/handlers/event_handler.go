@@ -17,6 +17,30 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+const (
+	// Default query parameters
+	DefaultPage      = 1
+	DefaultLimit     = 10
+	DefaultSortBy    = "createdAt"
+	DefaultSortOrder = "asc"
+
+	// Query parameter names
+	ParamPage       = "page"
+	ParamLimit      = "limit"
+	ParamSortBy     = "sortBy"
+	ParamSortOrder  = "sortOrder"
+	ParamGroupBy    = "groupBy"
+	ParamAggregates = "aggregates"
+	ParamInterval   = "interval"
+
+	// Default aggregation values
+	DefaultAggregates = "count"
+	DefaultInterval   = "day"
+
+	// Context timeout
+	QueryTimeout = 30 * time.Second
+)
+
 func CreateEvent(c *fiber.Ctx) error {
 	ctx := c.Context()
 	var input requests.CreateEventRequest
@@ -68,19 +92,19 @@ func CreateEvent(c *fiber.Ctx) error {
 // - sortOrder: Sort direction, 'asc' or 'desc' (default: asc)
 // - Any other query parameter will be used as a filter
 func GetEvents(c *fiber.Ctx) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), QueryTimeout)
 	defer cancel()
 
 	// Extract query parameters
-	page, _ := strconv.Atoi(c.Query("page", "1"))
-	limit, _ := strconv.Atoi(c.Query("limit", "10"))
-	sortBy := c.Query("sortBy", "createdAt")
-	sortOrder := c.Query("sortOrder", "asc")
+	page, _ := strconv.Atoi(c.Query(ParamPage, strconv.Itoa(DefaultPage)))
+	limit, _ := strconv.Atoi(c.Query(ParamLimit, strconv.Itoa(DefaultLimit)))
+	sortBy := c.Query(ParamSortBy, DefaultSortBy)
+	sortOrder := c.Query(ParamSortOrder, DefaultSortOrder)
 
 	// Extract filters
 	filters := bson.M{}
 	for key, values := range c.Queries() {
-		if key != "page" && key != "limit" && key != "sortBy" && key != "sortOrder" {
+		if !isReservedQueryParam(key) {
 			filters[key] = values
 		}
 	}
@@ -92,10 +116,21 @@ func GetEvents(c *fiber.Ctx) error {
 	}
 
 	return httpx.SendResponse(c, httpx.OK("Events retrieved successfully", fiber.Map{
-		"page":   page,
-		"limit":  limit,
-		"events": events,
+		ParamPage:  page,
+		ParamLimit: limit,
+		"events":   events,
 	}))
+}
+
+// isReservedQueryParam checks if a query parameter is reserved for pagination/sorting
+func isReservedQueryParam(key string) bool {
+	reservedParams := []string{ParamPage, ParamLimit, ParamSortBy, ParamSortOrder}
+	for _, reserved := range reservedParams {
+		if key == reserved {
+			return true
+		}
+	}
+	return false
 }
 
 // GetStats aggregates event data based on grouping and aggregation criteria
@@ -107,11 +142,11 @@ func GetStats(c *fiber.Ctx) error {
 	ctx := context.Background()
 
 	// Extract query parameters
-	groupBy := c.Query("groupBy", "")
-	aggregates := c.Query("aggregates", "count") // E.g., count, sum, avg
+	groupBy := c.Query(ParamGroupBy, "")
+	aggregates := c.Query(ParamAggregates, DefaultAggregates)
 	filters := bson.M{}
 	for key, values := range c.Queries() {
-		if key != "groupBy" && key != "aggregates" {
+		if key != ParamGroupBy && key != ParamAggregates {
 			filters[key] = values
 		}
 	}
@@ -123,9 +158,9 @@ func GetStats(c *fiber.Ctx) error {
 	}
 
 	return httpx.SendResponse(c, httpx.OK("Stats retrieved successfully", fiber.Map{
-		"groupBy":    groupBy,
-		"aggregates": aggregates,
-		"stats":      stats,
+		ParamGroupBy:    groupBy,
+		ParamAggregates: aggregates,
+		"stats":         stats,
 	}))
 }
 
@@ -138,11 +173,11 @@ func GetTimeSeries(c *fiber.Ctx) error {
 	ctx := context.Background()
 
 	// Extract query parameters
-	aggregates := c.Query("aggregates", "count")
-	interval := c.Query("interval", "day") // E.g., day, week, month
+	aggregates := c.Query(ParamAggregates, DefaultAggregates)
+	interval := c.Query(ParamInterval, DefaultInterval)
 	filters := bson.M{}
 	for key, values := range c.Queries() {
-		if key != "aggregates" && key != "interval" {
+		if key != ParamAggregates && key != ParamInterval {
 			filters[key] = values
 		}
 	}
@@ -154,8 +189,8 @@ func GetTimeSeries(c *fiber.Ctx) error {
 	}
 
 	return httpx.SendResponse(c, httpx.OK("Time series retrieved successfully", fiber.Map{
-		"interval":   interval,
-		"aggregates": aggregates,
-		"timeSeries": timeSeries,
+		ParamInterval:   interval,
+		ParamAggregates: aggregates,
+		"timeSeries":    timeSeries,
 	}))
 }
