@@ -72,8 +72,7 @@ func CreateEvent(c *fiber.Ctx) error {
 // - limit: Items per page (default: 50)
 // - sortBy: Field to sort by (default: createdAt)
 // - sortOrder: Sort direction, 'asc' or 'desc' (default: asc)
-// - filters: JSON string for complex MongoDB queries (e.g., {"status":"active","created_at":{"$gte":"2024-01-01"}})
-// - Any other query parameter will be used as a simple filter (for backward compatibility)
+// - filters: Optional JSON string for complex MongoDB queries (e.g., {"status":"active","created_at":{"$gte":"2024-01-01"}})
 func GetEvents(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), constants.QueryTimeout)
 	defer cancel()
@@ -104,21 +103,13 @@ func GetEvents(c *fiber.Ctx) error {
 		return httpx.SendResponse(c, httpx.BadRequest("Sort order must be 'asc' or 'desc'", nil))
 	}
 
-	// Parse JSON filters if provided
+	// Parse JSON filters (optional)
 	var filters bson.M
 	if filterStr := c.Query("filters"); filterStr != "" {
 		var err error
 		filters, err = parseJSONFilters(filterStr)
 		if err != nil {
 			return httpx.SendResponse(c, httpx.BadRequest("Invalid filters parameter", err))
-		}
-	} else {
-		// Extract simple filters for backward compatibility
-		filters = bson.M{}
-		for key, values := range c.Queries() {
-			if !isReservedQueryParam(key) {
-				filters[key] = values
-			}
 		}
 	}
 
@@ -133,17 +124,6 @@ func GetEvents(c *fiber.Ctx) error {
 		constants.ParamLimit: limit,
 		"events":             events,
 	}))
-}
-
-// isReservedQueryParam checks if a query parameter is reserved for pagination/sorting
-func isReservedQueryParam(key string) bool {
-	reservedParams := []string{constants.ParamPage, constants.ParamLimit, constants.ParamSortBy, constants.ParamSortOrder, constants.ParamFilters}
-	for _, reserved := range reservedParams {
-		if key == reserved {
-			return true
-		}
-	}
-	return false
 }
 
 // isValidSortField checks if a sort field is valid to prevent injection attacks
@@ -183,8 +163,7 @@ func isValidTimeInterval(interval string) bool {
 // Supports query parameters:
 // - groupBy: Field to group results by
 // - aggregates: Aggregation operation (count, sum, avg)
-// - filters: JSON string for complex MongoDB queries
-// - Any other query parameter will be used as a filter (for backward compatibility)
+// - filters: Optional JSON string for complex MongoDB queries
 func GetStats(c *fiber.Ctx) error {
 	ctx := context.Background()
 
@@ -200,21 +179,13 @@ func GetStats(c *fiber.Ctx) error {
 		return httpx.SendResponse(c, httpx.BadRequest("Invalid aggregation type", nil))
 	}
 
-	// Parse JSON filters if provided
+	// Parse JSON filters (optional)
 	var filters bson.M
 	if filterStr := c.Query("filters"); filterStr != "" {
 		var err error
 		filters, err = parseJSONFilters(filterStr)
 		if err != nil {
 			return httpx.SendResponse(c, httpx.BadRequest("Invalid filters parameter", err))
-		}
-	} else {
-		// Extract simple filters for backward compatibility
-		filters = bson.M{}
-		for key, values := range c.Queries() {
-			if key != constants.ParamGroupBy && key != constants.ParamAggregates {
-				filters[key] = values
-			}
 		}
 	}
 
@@ -235,8 +206,7 @@ func GetStats(c *fiber.Ctx) error {
 // Supports query parameters:
 // - interval: Time grouping interval (hour, day, week, month)
 // - aggregates: Aggregation operation (count, sum, avg)
-// - filters: JSON string for complex MongoDB queries
-// - Any other query parameter will be used as a filter (for backward compatibility)
+// - filters: Optional JSON string for complex MongoDB queries
 func GetTimeSeries(c *fiber.Ctx) error {
 	ctx := context.Background()
 
@@ -252,21 +222,13 @@ func GetTimeSeries(c *fiber.Ctx) error {
 		return httpx.SendResponse(c, httpx.BadRequest("Invalid time interval", nil))
 	}
 
-	// Parse JSON filters if provided
+	// Parse JSON filters (optional)
 	var filters bson.M
 	if filterStr := c.Query("filters"); filterStr != "" {
 		var err error
 		filters, err = parseJSONFilters(filterStr)
 		if err != nil {
 			return httpx.SendResponse(c, httpx.BadRequest("Invalid filters parameter", err))
-		}
-	} else {
-		// Extract simple filters for backward compatibility
-		filters = bson.M{}
-		for key, values := range c.Queries() {
-			if key != constants.ParamAggregates && key != constants.ParamInterval {
-				filters[key] = values
-			}
 		}
 	}
 
