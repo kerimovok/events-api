@@ -5,6 +5,7 @@ import (
 	"events-api/internal/config"
 	"events-api/internal/constants"
 	"events-api/internal/database"
+	"events-api/internal/queue"
 	"events-api/internal/routes"
 	"log"
 	"net/http"
@@ -86,36 +87,83 @@ func main() {
 	// Set the global DB client for handlers
 	database.DBClient = client
 
-	app := setupApp()
-	routes.Setup(app)
+	// Get service configuration
+	eventProcessingMode := pkgConfig.GetEnv("EVENT_PROCESSING_MODE")
+	enableRestAPI := eventProcessingMode == "rest-only" || eventProcessingMode == "hybrid"
+	enableRabbitMQConsumer := eventProcessingMode == "queue-only" || eventProcessingMode == "hybrid"
+
+	log.Printf("Event processing mode: %s", eventProcessingMode)
+	log.Printf("Service configuration: REST API=%v, RabbitMQ Consumer=%v", enableRestAPI, enableRabbitMQConsumer)
+
+	// Validate processing mode
+	if eventProcessingMode != "rest-only" && eventProcessingMode != "queue-only" && eventProcessingMode != "hybrid" {
+		log.Fatal("Invalid EVENT_PROCESSING_MODE. Must be 'rest-only', 'queue-only', or 'hybrid'")
+	}
+
+	var app *fiber.App
+	var consumer *queue.Consumer
+
+	// Setup Fiber app only if REST API is enabled
+	if enableRestAPI {
+		app = setupApp()
+		routes.Setup(app)
+		log.Println("REST API server initialized")
+	}
+
+	// Setup RabbitMQ consumer only if enabled
+	if enableRabbitMQConsumer {
+		var err error
+		consumer, err = queue.NewConsumer()
+		if err != nil {
+			log.Printf("Failed to initialize RabbitMQ consumer: %v", err)
+			log.Println("Continuing without RabbitMQ consumer...")
+			enableRabbitMQConsumer = false
+		} else {
+			// Start consuming messages in background
+			go func() {
+				if err := consumer.StartConsuming(); err != nil {
+					log.Printf("RabbitMQ consumer error: %v", err)
+				}
+			}()
+			log.Println("RabbitMQ consumer initialized")
+		}
+	}
 
 	// Setup graceful shutdown
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		<-c
+		<-quit
 		log.Println("Gracefully shutting down...")
 
-		// Shutdown the server
-		if err := app.Shutdown(); err != nil {
-			log.Printf("error during server shutdown: %v", err)
+		// Shutdown the server if REST API is enabled
+		if enableRestAPI && app != nil {
+			if err := app.Shutdown(); err != nil {
+				log.Printf("error during server shutdown: %v", err)
+			}
 		}
 
-		// Disconnect from MongoDB
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		if err := client.Disconnect(ctx); err != nil {
-			log.Printf("failed to disconnect from MongoDB: %v", err)
+		// Close RabbitMQ consumer if enabled
+		if enableRabbitMQConsumer && consumer != nil {
+			if err := consumer.Close(); err != nil {
+				log.Printf("error during consumer shutdown: %v", err)
+			}
 		}
 
 		log.Println("Server gracefully stopped")
 		os.Exit(0)
 	}()
 
-	// Start server
-	if err := app.Listen(":" + pkgConfig.GetEnv("PORT")); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("failed to start server: %v", err)
+	// Start server only if REST API is enabled
+	if enableRestAPI {
+		log.Printf("Starting REST API server on port %s", pkgConfig.GetEnv("PORT"))
+		if err := app.Listen(":" + pkgConfig.GetEnv("PORT")); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("failed to start server: %v", err)
+		}
+	} else {
+		log.Println("REST API is disabled, running in consumer-only mode")
+		// Keep the main goroutine alive for the consumer
+		select {}
 	}
 }

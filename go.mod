@@ -7,7 +7,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/kerimovok/go-pkg-database v1.0.0
-	github.com/kerimovok/go-pkg-utils v1.0.0
+	github.com/kerimovok/go-pkg-utils v1.1.0
+	github.com/rabbitmq/amqp091-go v1.10.0
 	go.mongodb.org/mongo-driver v1.17.4
 )
 
